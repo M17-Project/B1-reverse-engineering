@@ -17,7 +17,8 @@ The radio module has been controlled from adb (read-only queries and reversible 
 - The module MCU firmware is on the phone as a plain, unencrypted ARMv6-M (Cortex-M0 class) image. **[device]** The baseband is a Sicomm/CML **SCT3258-family** processor: the firmware frames its commands in the SCT3258 packet interface, and documented SCT3258 fields behave as documented when written. **[static] [device]**
 - The firmware parses two control protocols **in parallel on the same UART**: the binary `55 AA` protocol (used by Android) and an AT text protocol. `AT+SDKWRITE` writes arbitrary SCT3258 packet fields. **[device]**
 - **RX audio reaches the SoC only in "Intercom BT mode"** (ioctl `0x4905` = 1), on PMIC input IN_ADC1, and can be recorded at 48 kHz with tinyalsa. Normally the module drives the speaker amplifier directly. **[device]**
-- **The stock analog RX path has a steep high-pass filter at about 300 Hz inside the SCT3258.** It cannot be switched off by any setting found, nor by changing the SD01 firmware. With an equaliser trained on the sync words, real M17 from another radio partly decodes (about 57 % of frames). Without one, nothing decodes. See section 10. **[device]**
+- **The stock analog RX path has a steep high-pass filter at about 300 Hz inside the SCT3258.** It cannot be switched off by any setting found, nor by changing the SD01 firmware. A plain M17 demodulator decodes nothing. **A receiver with an FEC-aided turbo equaliser decodes real M17 from another radio through this path**: all frames of a 25 s transmission, LSF CRC valid in every superframe, clean voice by ear apart from one frame. See section 10. **[device]**
+- **The module has a single audio output (codec HPL) that feeds both the speaker amplifier and the SoC ADC.** While the radio is receiving, the demodulated 4FSK cannot be kept off the speaker without also losing it on the SoC side. See section 10. **[device]**
 - Root is not required to control the radio. The tested unit nevertheless has a root adb shell and SELinux in permissive mode. **[device]**
 
 ## 2. Device
@@ -31,7 +32,8 @@ The radio module has been controlled from adb (read-only queries and reversible 
 | adb shell | uid 0 (root) | [device] |
 | SELinux | Permissive (`avc: denied ... permissive=1` in dmesg) | [device] |
 | Sound cards | one: `mt-snd-card`, 33 PCM devices, no tinyalsa tools on the ROM | [device] |
-| Speaker amplifier | AW87329, with an intercom input mode (`aw87329_intercom_kspk`) | [device] |
+| Speaker amplifier | AW87329 at I2C 3-0058, with an intercom input mode (`aw87329_intercom_kspk`) | [device] |
+| Module audio codec | register map of a TI TLV320AIC3204, see section 8 | [static] [device], part number unverified |
 | Radio module | SD01, hardware ID 500 (`ptt_version` = 500) | [device] |
 | Module SW version | `persist.intercom.softversion` = `230213` | [device] |
 | OEM packages | `com.runbo.sdk_service` (`/system/app/RunboSdkService`), `com.hdqy.runbo.telephony` (`/system/priv-app/HdqyInfoManager`) | [device] |
@@ -53,7 +55,7 @@ Any Android app
         /dev/ttyS0             UART, 38400 8N1, binary 55 AA frames (AT text also accepted)
           SD01 module MCU (ARMv6-M) running SD01_UAVA_RFINDER.bin
             SCT3258-family DMR/dPMR/analog baseband (DSP code in its own flash)
-            es8388 codec, RF
+            audio codec (TLV320AIC3204 register map), RF
 ```
 
 - `libintercomjni.so` is listed in `/vendor/etc/public.libraries.txt`, so any app may load it. **[device]**
@@ -107,7 +109,7 @@ Path: `/sys/bus/platform/drivers/intercom_driver/intercom/`
 | Node | Mode | Observed values |
 |---|---|---|
 | `bt_ptt` | rw-rw-rw- | 0 |
-| `hw_pd` | rw-rw-rw- | 0 or 1, both while the module was receiving (meaning unclear) |
+| `hw_pd` | rw-rw-rw- | 1 while the module is powered, 0 after the app powers it down (ioctl `0x4900` = 0, dmesg `Power_Down intercom!`) |
 | `mic_power` | rwxrwxrwx | 0 |
 | `mic_sw` | rw-rw-rw- | 0 |
 | `headset_mic_only` | rw-rw- | 0 |
@@ -121,6 +123,19 @@ The kernel exports `get_intercom_bt_mode`, `intercom_audio_out_ctr`, `intercom_a
 The device-tree node is `/proc/device-tree/intercom` (`compatible = "mediatek,mt6735-intercom"`). Its pinctrl states are `intercom_default`, `intercom_pdn_output0/1`, `intercom_bt_ptt_output0/1`, `intercom_mic_headset`, `intercom_mic_main`, `intercom_sq_as_eint` (squelch as an interrupt), `intercom_ptt_as_eint`, `intercom_external_uart0/1`, `sys_wake_ptt_pin0/1`, `intercom_dmr_msg_eint`, `uart_sw_pin_enable/disable` and `intercom_mic_power0/1`. **[device]**
 
 The RFinder app also writes `bt_ptt:1` / `bt_ptt:0` to `bt_ptt` to key the radio from a Bluetooth PTT button, and reads the channel knob from `/sys/devices/platform/knob/channel`. **[static]**
+
+### Speaker amplifier (AW87329) [device]
+
+Path: `/sys/bus/i2c/drivers/aw87329/3-0058/`, nodes `hwen`, `mode` (0 off, 1 kspk, 2 drcv, 3 abrcv), `protect`, `reg`, `update`. The reset line is GPIO159 (pinctrl device `ext_amp`, states `aw_state_rst_output0/1`). The driver logs `aw87329 aw_rst level:%d, silent:%d` on every change.
+
+- With the radio on, the RFinder app keeps the amplifier in intercom mode (`spk_mode` 3). Volume knob 0 puts the amplifier in reset.
+- In BT mode the kernel holds the amplifier in reset, and Android playback does not wake it.
+- Switching BT mode off also leaves the amplifier in reset until the next app event (for example a knob turn).
+- **Pitfall:** writing `0` to `mode` latches a `silent` flag in the driver. Afterwards every playback starts with `silent:1` and nothing is heard, including ringtones, until a reboot. Restore `mode` to the value read before a test instead.
+
+Android audio and the module audio are summed at the amplifier input. With the radio on, phone audio is audible only faintly under the module audio. With the radio powered down, phone audio plays normally.
+
+The quick-settings tile "Speaker Mode" (SystemUI, `speaker` tile) only toggles `persist.sys.speaker.mode` ("External" 0, "Phone" 1). It changes no GPIO and no routing that was observed.
 
 ## 7. Module identification [static]
 
@@ -157,7 +172,7 @@ Evidence:
 - Vocoder name table: `AMBE+2`, `AMBE+2C`, `AMBE3000`, `RALCWI`, `TINGHUA`, `IFENGYU`, `ANDLOGY`. RALCWI is CML Microcircuits' proprietary vocoder.
 - Board/vendor strings `Sicomm001`, `BOARD_EVM` (`AT+MODELNAME?` returns `BOARD_EVM`).
 - dPMR support throughout (`+DPMRCC`, `digital_tx=dpmr_start`, ...).
-- `es8388` / `es8388s` and `eeprom`: an Everest ES8388 audio codec on the module.
+- The strings `es8388s` and `eeprom` are device names of the `+CHIP` debug command. The `es8388s` branch is a stub (see below), and the codec register writes in the firmware match a TI TLV320AIC3204, not an ES8388.
 - **The firmware builds SCT3258 packet-interface frames** (start bytes `84 A9 61`, field-length table at `0x08026280` with `[id, len+1]` entries matching the SCT3258 manual, for example `0x3C` ANALOG_CONFIG = 11 bytes, `0x70` EQUALIZER_FILTER = 11, `0x18` WORK_MODE = 3).
 - Fields written with `AT+SDKWRITE` behave as the SCT3258 manual describes: the RX equaliser (0x70) produced the designed response within about 1 dB, and ANALOG_CONFIG `FILTER_BYPASS` changed the RX chain. **[device]**
 
@@ -168,6 +183,20 @@ RX analog chain per the datasheet: HPF (pass 300 Hz, stop 255 Hz) -> de-emphasis
 - ANALOG_CONFIG (0x3C): mode bits `FILTER_BYPASS`, `BB_CH_SEL`, `SKIP_EMP`, `IF_CH_SEL`, `COMPANDER`, `DCS_HPF`, `ALT_LPF`, plus five gains.
 - CTC_PARAM (0x3D): `HPF_CORNER`, 300 or 450 Hz only.
 - EQUALIZER_FILTER (0x70): three RX or TX biquads at 24 kHz, coefficients in Q2.14.
+
+### Module audio codec [static], confirmed [device]
+
+The SD01 MCU does not talk to the codec directly. The SCT3258 initialises it itself (its native codec support covers the TLV320AIC3204 and the WM8758B). The host can pass writes through the SCT3258: packets with TYPE 0x40 are forwarded to the codec over I2C.
+
+- The MCU firmware sends a few adjustments this way, as `[page, register, value]`: page 0 registers 0x56/0x58 (left AGC), page 1 register 0x3B (left MICPGA volume), page 1 register 0x34 (left MICPGA input routing, values 0x80 / 0x40 / 0x20), page 1 register 0x10 (HPL driver gain, 0x40 = HPL muted). This matches the TLV320AIC3204 register map.
+- From the host the same write is `AT+SDKWRITE=0,0,64,200,<page><reg><value>0000` (field 0, TYPE 0x40, the five bytes the firmware's own helpers send). **[device]**
+- Codec register reads (SCT3258 field I2C_OPERATION, 0x6A, TYPE 0x20) are sent, but the reply never reaches the host. `+SDKWRITE` waits for an echo, a read reply does not match it, and the wait routine clears the received-field queue. The raw `84 A9 61` pass-through also returns no data. **[device]**
+- Per the SCT3258 manual, with a stereo codec the left ADC is the microphone, the right ADC the RF chip's signal, the left DAC the RX audio line and the right DAC the VCTCXO port.
+
+Findings with codec writes (all undone by an RF module OFF/ON) **[device]**:
+
+- **HPL feeds both the SoC ADC and the speaker amplifier.** Muting HPL drops the captured signal by about 30 dB, and the speaker goes silent with the amplifier confirmed on.
+- **The codec's right input carries the received RF signal at low IF**, one component of a near-zero-IF receiver, hard limited, not FM-demodulated audio. Routing it to HPL (page 1: 0x10 = 0x3A, 0x09 = 0x3D, 0x0C = 0x01, HPL from the right mixer amplifier MAR) shows the carrier at the tuning offset, moving one to one with the generator frequency. Narrow FM can be demodulated from it in software (37 dB SNR at 250 Hz deviation), but the RF chip's baseband filter is only about 4-5 kHz wide, so M17 does not fit in one real channel.
 
 ### UART input handling [static], confirmed [device]
 
@@ -196,7 +225,8 @@ AT command table: `{name, handler}` pairs from `0x080258A8`.
 | `+SDKWRITE=a,b,c,d,hex` | `a`=0: write SCT3258 packet field `b`, TYPE low bits `c` (0 = write, bit 5 = read request), wait `d` ms, payload = plain hex digits (no prefix/separators, max 100 bytes). Numbers are decimal. Example: `AT+SDKWRITE=0,112,0,200,<22 hex>` writes EQUALIZER_FILTER. **[device]** |
 | `+SDKREAD=a,b,c,d` | `a`=2: copy `c` bytes of field `b` from the queue of fields **already reported** by the baseband (no request is sent). ANALOG_CONFIG is not readable per the manual. Replies `+SDKREAD_HEX:` / `_ASCII:` / `_FAIL:` |
 | `+SDKIOCTRL=a,b,c,d` | four u16 arguments into a 44-case Sicomm SDK dispatcher (`0x08018F74`), prints `ioctrol_ret_val = %d` |
-| `+CHIP`, `+REGINFO` | chip identity / info |
+| `+CHIP=read\|write,<dev>,<hex addr>[,<hex value>]` | debug register access. `<dev>` = `eeprom` (implemented) or `es8388s` (stub, returns without doing anything) |
+| `+REGINFO` | info |
 | `+REGALL` | **not a register dump**: compares its argument with two strings and returns a status |
 | `+MODELNAME?` | `+MODELNAME:BOARD_EVM` **[device]** |
 | `+RSSIVAL?` | `+RSSIVAL:-3` with a strong signal (unit unknown) **[device]** |
@@ -286,19 +316,32 @@ Module-side settings tried, all receive only and reversible by an RF module OFF/
 | WORK_MODE (0x18) audio decimator loop-back | no effect |
 | ANALOG_CONFIG `FILTER_BYPASS` | **partial bypass**. Removes the mid-band droop and the 3 kHz LPF and adds about 38 dB of gain, but **the HPF stays** (response relative to 1 kHz: 100 Hz -40, 200 Hz -23, 300 Hz -12, 500 Hz +1, 2 kHz +2, 3 kHz +5 dB). The output clips in the module below about 1 kHz deviation, the RX volume gain has no effect, and the speaker plays near full scale even with BT mode on. |
 | CTC_PARAM `HPF_CORNER` | 300 or 450 Hz only |
+| Codec routing HPL from MAR | low-IF RF signal instead of audio, too narrow for M17 (section 8) |
 
 #### Real M17
 
-M17 voice from a Connect Systems CS7000, received through the stock path and decoded with `m17-decoder-sym` (M17_Implementations):
+M17 voice from a Connect Systems CS7000 (callsign SP5WWP to @ALL), received through the BT-mode path with the in-chip RX equaliser boosting the low end (low shelf 250 Hz +24 dB, peaks at 1.7 kHz and 3.4 kHz), decoded offline on a PC. Frame counts for a 25 s transmission (about 617 frames):
 
-| Front end | Frames decoded (of about 610) | Frame number consistent |
-|---|---|---|
-| RRC matched filter only | 0 | - |
-| + LS equaliser trained on the stream sync words, 81 taps | 544 | 349 (about 57 % of transmitted frames) |
+| Receiver | Frame number consistent | LSF CRC valid | Voice |
+|---|---|---|---|
+| RRC matched filter, `m17-decoder-sym` | 0 | - | - |
+| LS equaliser trained on the sync words | 503 | 0 of 2 assembled | - |
+| LS equaliser retrained on re-encoded decoded frames | 588-589 | 58 / 69 | many Codec2 artifacts |
+| + hard-decision interference cancellation | 596 | 109 / 117 | fewer artifacts |
+| **+ turbo equaliser** | **616-617** | **100 / 100** | **clean by ear except one frame** |
 
-No complete LSF was recovered. The sync words (runs of outer symbols) are the most LF-heavy part of M17 and suffer most from the HPF. The next step on this path is a front end designed for this channel (MLSE or DFE with the known response, and sync detection that tolerates the distortion).
+How the receiver works:
 
-`m17-decoder-sym` has a bug that this signal triggers: a corrupted LICH can yield `lich_cnt` 6 or 7, and `memcpy((uint8_t*)&lsf+lich_cnt*5, lich_b, 5)` then overflows `lsf`. It needs a `lich_cnt < 6` check.
+- Clock recovery, RRC matched filter and a T/2-spaced linear equaliser. Every frame that decodes is re-encoded with the M17 transmit chain to give its exact 192 symbols, and the equaliser is retrained on those.
+- With the symbols known, the channel is linear with a memory of about 100 symbols (20 ms), and a linear model explains the received signal to 19 dB. Nonlinear terms add nothing. The remaining limit is noise enhancement where the equaliser restores the weak band below 260 Hz.
+- Turbo equaliser: soft MMSE interference cancellation driven by extrinsic information from a log-MAP (BCJR) decoder of the K=5 convolutional code. Hard re-encoded decisions instead lock about 11 % of frames into wrong decodes (simulation with the measured channel and known data: 33-35 % bad voice frames without cancellation, 11 % with hard decisions, 0 % with the turbo equaliser after 5 iterations).
+- Frames with low decoder confidence are concealed as silence in the decoded audio. Codec2 frames of all-zero bits do not give silence, they give low-frequency noise.
+
+A second session (two transmissions of 12-13 s each) decoded with LSF CRC valid in every superframe, but with 8 % and 22 % low-confidence frames. A short transmission gives the first equaliser stage too few frames to train on. A live receiver has to carry the equaliser and channel model across transmissions.
+
+#### Playing the decoded speech on the B1-Plus
+
+While receiving, the 4FSK audio has to reach the SoC through HPL, and HPL also drives the speaker amplifier (section 8). In BT mode the amplifier is held in reset, and when forced on it plays the module audio. Decoded speech can be summed in from the phone side, but the 4FSK buzz stays underneath while a signal is present. Muting HPL between transmissions (squelch closed) keeps the speaker silent then.
 
 The TX direction (phone audio into the module's modulator) has not been examined yet.
 
@@ -308,7 +351,7 @@ The SD01 image appears unsigned, but changing it cannot remove the analog HPF, b
 
 ### D. The SCT3258's native 4FSK modem
 
-DMR is also 4800 sym/s RRC 4FSK. Whether a packet field (for example a raw-symbol, BER or layer-2 mode) can be made to carry M17 symbols is an open question. Read-only analysis of the packet interface comes first.
+DMR is also 4800 sym/s RRC 4FSK, but every digital mode of the SCT3258 found in the packet interface (DMR and dPMR layer 2, call reports, transparent data, BER test) works after the chip's own DMR/dPMR sync detection and FEC. No raw symbol or soft-bit output was found, so M17 symbols cannot be taken from the chip's modem without new DSP firmware.
 
 ## 11. Sources
 
