@@ -17,7 +17,7 @@ The radio module has been controlled from adb (read-only queries and reversible 
 - The module MCU firmware is on the phone as a plain, unencrypted ARMv6-M (Cortex-M0 class) image. **[device]** The baseband is a Sicomm/CML **SCT3258-family** processor: the firmware frames its commands in the SCT3258 packet interface, and documented SCT3258 fields behave as documented when written. **[static] [device]**
 - The firmware parses two control protocols **in parallel on the same UART**: the binary `55 AA` protocol (used by Android) and an AT text protocol. `AT+SDKWRITE` writes arbitrary SCT3258 packet fields. **[device]**
 - **RX audio reaches the SoC only in "Intercom BT mode"** (ioctl `0x4905` = 1), on PMIC input IN_ADC1, and can be recorded at 48 kHz with tinyalsa. Normally the module drives the speaker amplifier directly. **[device]**
-- **The stock analog RX path has a steep high-pass filter at about 300 Hz inside the SCT3258.** It cannot be switched off by any setting found, nor by changing the SD01 firmware. A plain M17 demodulator decodes nothing. **A receiver with an FEC-aided turbo equaliser decodes real M17 from another radio through this path**: all frames of a 25 s transmission, LSF CRC valid in every superframe, clean voice by ear apart from one frame. See section 10. **[device]**
+- **The stock analog RX path has a steep high-pass filter at about 300 Hz inside the SCT3258.** It cannot be switched off by any setting found, nor by changing the SD01 firmware. A plain M17 demodulator decodes nothing. **A receiver with an FEC-aided turbo equaliser decodes real M17 from another radio through this path**: all frames of a 25 s transmission, LSF CRC valid in every superframe, clean voice by ear apart from one frame. Transmissions of 7-9 s decode as well, with no per-unit training. See section 10. **[device]**
 - **The module has a single audio output (codec HPL) that feeds both the speaker amplifier and the SoC ADC.** While the radio is receiving, the demodulated 4FSK cannot be kept off the speaker without also losing it on the SoC side. See section 10. **[device]**
 - Root is not required to control the radio. The tested unit nevertheless has a root adb shell and SELinux in permissive mode. **[device]**
 
@@ -182,6 +182,7 @@ RX analog chain per the datasheet: HPF (pass 300 Hz, stop 255 Hz) -> de-emphasis
 
 - ANALOG_CONFIG (0x3C): mode bits `FILTER_BYPASS`, `BB_CH_SEL`, `SKIP_EMP`, `IF_CH_SEL`, `COMPANDER`, `DCS_HPF`, `ALT_LPF`, plus five gains.
 - CTC_PARAM (0x3D): `HPF_CORNER`, 300 or 450 Hz only.
+- `DCS_HPF` in ANALOG_CONFIG is documented as a DC-removal filter for DCS detection, not the voice HPF. Every analog RX signal flow in the datasheet passes through the same fixed voice HPF.
 - EQUALIZER_FILTER (0x70): three RX or TX biquads at 24 kHz, coefficients in Q2.14.
 
 ### Module audio codec [static], confirmed [device]
@@ -295,7 +296,9 @@ All require keeping transmissions within the operator's licence and testing into
 3. `tinycap out.wav -D 0 -d 1 -c 2 -r 48000 -b 16`. Channel 0 carries the radio audio.
 4. Restore the mixer (Preamp `OPEN`, ADC `Off`) and BT mode 0.
 
-Without BT mode, every PMIC input carries only idle noise even with the squelch open. The phone's own uplink IIR is only a DC blocker (coefficients +/-0.9956). The volume knob is a gain stage in front of the recording, so keep it fixed while recording. Switching BT mode off and on again leaves the module audio muted in the next session, until a volume command (the knob) or an RF module restart.
+Without BT mode, every PMIC input carries only idle noise even with the squelch open. The phone's own uplink IIR is only a DC blocker (coefficients +/-0.9956). The volume knob is a gain stage in front of the recording, so keep it fixed while recording.
+
+The module audio level after switching BT mode on is not always the same. It has come up muted, or about 10 dB low until the next volume command, and once a knob change during a recording left it about 40 dB low. A 5 s check recording of the open-squelch static before each capture catches this (about -73 dB/Hz in the 250-3000 Hz band at knob 2 when healthy). An RF module OFF/ON restores it.
 
 #### Measured RX response
 
@@ -335,13 +338,20 @@ How the receiver works:
 - Clock recovery, RRC matched filter and a T/2-spaced linear equaliser. Every frame that decodes is re-encoded with the M17 transmit chain to give its exact 192 symbols, and the equaliser is retrained on those.
 - With the symbols known, the channel is linear with a memory of about 100 symbols (20 ms), and a linear model explains the received signal to 19 dB. Nonlinear terms add nothing. The remaining limit is noise enhancement where the equaliser restores the weak band below 260 Hz.
 - Turbo equaliser: soft MMSE interference cancellation driven by extrinsic information from a log-MAP (BCJR) decoder of the K=5 convolutional code. Hard re-encoded decisions instead lock about 11 % of frames into wrong decodes (simulation with the measured channel and known data: 33-35 % bad voice frames without cancellation, 11 % with hard decisions, 0 % with the turbo equaliser after 5 iterations).
-- Frames with low decoder confidence are concealed as silence in the decoded audio. Codec2 frames of all-zero bits do not give silence, they give low-frequency noise.
+- Frames with low decoder confidence (smallest payload LLR below 8) are concealed. A gap of one or two frames repeats the previous good Codec2 frame, which is inaudible. Longer gaps become silence with short fades. Codec2 frames of all-zero bits do not give silence, they give low-frequency noise. The confidence threshold matters: at 2, frames with residual bit errors slipped through and were heard as short chirps.
 
-A second session (two transmissions of 12-13 s each) decoded with LSF CRC valid in every superframe, but with 8 % and 22 % low-confidence frames. A short transmission gives the first equaliser stage too few frames to train on. A live receiver has to carry the equaliser and channel model across transmissions.
+Short transmissions decode as well as long ones. Seven transmissions of 7-9 s, over four sessions, gave 1438 of 1440 frame numbers. Per transmission 0 to 8 frames (at most 4 %) were concealed, all as one- or two-frame repeats, none as silence. Played back on the phone they sounded clean, apart from one chirp heard with the earlier threshold of 2. Decoding takes about 15 s per 40 s recording on a PC.
+
+- The capture level matters more than the transmission length. An earlier pair of 12-13 s transmissions was recorded about 14 dB too low (see the BT mode note above) and lost 8 % and 22 % of frames.
+- Training does not need a known signal or a per-unit calibration. Every transmission is equalised from its own sync words and decoded frames. Starting from the equaliser of the previous transmission in the same session makes the first pass much better (151 instead of 58 good frames), but the final result is the same. An equaliser from another day was a worse start than none, because the channel changes. A second equaliser pass trained on the turbo output gains nothing. The remaining errors come from the channel (the HPF), not from too little training data.
+- The weights of a plain least-squares equaliser are badly conditioned here, because the HPF leaves almost no signal energy in some directions. A small ridge (Tikhonov) term fixes this without changing the results.
+- The equaliser output polarity is not known in advance. The receiver should try both signs.
 
 #### Playing the decoded speech on the B1-Plus
 
-While receiving, the 4FSK audio has to reach the SoC through HPL, and HPL also drives the speaker amplifier (section 8). In BT mode the amplifier is held in reset, and when forced on it plays the module audio. Decoded speech can be summed in from the phone side, but the 4FSK buzz stays underneath while a signal is present. Muting HPL between transmissions (squelch closed) keeps the speaker silent then.
+While receiving, the 4FSK audio has to reach the SoC through HPL, and HPL also drives the speaker amplifier (section 8). In BT mode the amplifier is held in reset, and when forced on it plays the module audio. Decoded speech can be summed in from the phone side, but it is much weaker than the module audio, and the 4FSK buzz stays underneath while a signal is present. Muting HPL between transmissions (squelch closed) keeps the speaker silent then.
+
+What works today is record, decode, play: record with the RF module on, switch it off, then play the decoded speech through the normal Android media player. With the module off, the speaker plays phone audio cleanly. Playing the speech while the radio stays on, with the 4FSK kept off the speaker, is still unsolved.
 
 The TX direction (phone audio into the module's modulator) has not been examined yet.
 
