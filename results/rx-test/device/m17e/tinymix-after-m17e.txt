@@ -1,0 +1,119 @@
+Number of controls: 117
+ctl	type	num	name                                    	device	value
+0	ENUM	1	Audio_Amp_R_Switch                      	0> Off, On, 
+1	ENUM	1	Audio_Amp_L_Switch                      	0> Off, On, 
+2	ENUM	1	Voice_Amp_Switch                        	0> Off, On, 
+3	ENUM	1	Speaker_Amp_Switch                      	0> Off, On, 
+4	ENUM	1	Headset_Speaker_Amp_Switch              	0> Off, On, 
+5	ENUM	1	Headset_PGAL_GAIN                       	0> 8Db, 7Db, 6Db, 5Db, 4Db, 3Db, 2Db, 1Db, 0Db, -1Db, -2Db, -3Db, -4Db, -5Db, -6Db, -7Db, -8Db, -9Db, -10Db, -11Db, -12Db, -13Db, -14Db, -15Db, -16Db, -17Db, -18Db, -19Db, -20Db, -21Db, -22Db, -40Db, 
+6	ENUM	1	Headset_PGAR_GAIN                       	08Db, 7Db, 6Db, 5Db, 4Db, 3Db, 2Db, 1Db, > 0Db, -1Db, -2Db, -3Db, -4Db, -5Db, -6Db, -7Db, -8Db, -9Db, -10Db, -11Db, -12Db, -13Db, -14Db, -15Db, -16Db, -17Db, -18Db, -19Db, -20Db, -21Db, -22Db, -40Db, 
+7	ENUM	1	Handset_PGA_GAIN                        	08Db, 7Db, 6Db, 5Db, 4Db, 3Db, 2Db, 1Db, > 0Db, -1Db, -2Db, -3Db, -4Db, -5Db, -6Db, -7Db, -8Db, -9Db, -10Db, -40Db, 
+8	ENUM	1	Lineout_PGAR_GAIN                       	0> 8Db, 7Db, 6Db, 5Db, 4Db, 3Db, 2Db, 1Db, 0Db, -1Db, -2Db, -3Db, -4Db, -5Db, -6Db, -7Db, -8Db, -9Db, -10Db, -40Db, 
+9	ENUM	1	Lineout_PGAL_GAIN                       	0> 8Db, 7Db, 6Db, 5Db, 4Db, 3Db, 2Db, 1Db, 0Db, -1Db, -2Db, -3Db, -4Db, -5Db, -6Db, -7Db, -8Db, -9Db, -10Db, -40Db, 
+10	ENUM	1	AUD_CLK_BUF_Switch                      	0> Off, On, 
+11	ENUM	1	Ext_Speaker_Amp_Switch                  	0> Off, On, 
+12	ENUM	1	Receiver_Speaker_Switch                 	0> Off, On, 
+13	ENUM	1	PMIC_REG_CLEAR                          	0> Off, On, 
+14	INT	1	Codec_ADC_SampleRate                    	048000 (range 0->192000)
+15	INT	1	Codec_DAC_SampleRate                    	048000 (range 0->192000)
+16	INT	2	DcTrim_DC_Offset                        	0-2, 15 (range 0->131072)
+17	INT	1	[HP+SPK] DcTrim_DC_Offset               	07 (range 0->65536)
+18	ENUM	1	Dctrim_Control_Switch                   	0Not_Yet, Calibrating, > Calibrated, 
+19	INT	1	Audio HP ImpeDance Setting              	0475 (range 0->65536)
+20	ENUM	1	Headphone Plugged In                    	0> Off, On, 
+21	ENUM	1	Apply_N12DB_Gain                        	0> Off, On, 
+22	ENUM	1	Audio_ADC_1_Switch                      	0> Off, On, 
+23	ENUM	1	Audio_ADC_2_Switch                      	0> Off, On, 
+24	ENUM	1	Audio_ADC_3_Switch                      	0> Off, On, 
+25	ENUM	1	Audio_ADC_4_Switch                      	0> Off, On, 
+26	ENUM	1	Audio_Preamp1_Switch                    	0> OPEN, IN_ADC1, IN_ADC2, IN_ADC3, 
+27	ENUM	1	Audio_ADC_1_Sel                         	0idle, AIN, > Preamp, 
+28	ENUM	1	Audio_ADC_2_Sel                         	0idle, AIN, > Preamp, 
+29	ENUM	1	Audio_ADC_3_Sel                         	0> idle, AIN, Preamp, 
+30	ENUM	1	Audio_ADC_4_Sel                         	0> idle, AIN, Preamp, 
+31	ENUM	1	Audio_PGA1_Setting                      	00Db, 6Db, 12Db, > 18Db, 24Db, 30Db, 
+32	ENUM	1	Audio_PGA2_Setting                      	00Db, 6Db, 12Db, > 18Db, 24Db, 30Db, 
+33	ENUM	1	Audio_PGA3_Setting                      	0> 0Db, 6Db, 12Db, 18Db, 24Db, 30Db, 
+34	ENUM	1	Audio_PGA4_Setting                      	0> 0Db, 6Db, 12Db, 18Db, 24Db, 30Db, 
+35	ENUM	1	Audio_MicSource1_Setting                	0> ADC1, ADC2, ADC3, ADC4, 
+36	ENUM	1	Audio_MicSource2_Setting                	0> ADC1, ADC2, ADC3, ADC4, 
+37	ENUM	1	Audio_MicSource3_Setting                	0> ADC1, ADC2, ADC3, ADC4, 
+38	ENUM	1	Audio_MicSource4_Setting                	0> ADC1, ADC2, ADC3, ADC4, 
+39	ENUM	1	Audio_MIC1_Mode_Select                  	0> ACCMODE, DCCMODE, DMIC, DCCECMDIFFMODE, DCCECMSINGLEMODE, 
+40	ENUM	1	Audio_MIC2_Mode_Select                  	0> ACCMODE, DCCMODE, DMIC, DCCECMDIFFMODE, DCCECMSINGLEMODE, 
+41	ENUM	1	Audio_MIC3_Mode_Select                  	0> ACCMODE, DCCMODE, DMIC, DCCECMDIFFMODE, DCCECMSINGLEMODE, 
+42	ENUM	1	Audio_MIC4_Mode_Select                  	0> ACCMODE, DCCMODE, DMIC, DCCECMDIFFMODE, DCCECMSINGLEMODE, 
+43	ENUM	1	Audio_Mic_Power_Mode                    	0> normal, lowpower, 
+44	ENUM	1	Audio_Preamp2_Switch                    	0> OPEN, IN_ADC1, IN_ADC2, IN_ADC3, 
+45	ENUM	1	Audio_UL_LR_Swap                        	0> Off, On, 
+46	ENUM	1	Audio_AMIC_DCC_Setting                  	0> Off, On, 
+47	ENUM	1	SineTable_DAC_HP                        	0> Off, On, 
+48	ENUM	1	DAC_LOOP_DAC_HS                         	0> Off, On, 
+49	ENUM	1	DAC_LOOP_DAC_HP                         	0> Off, On, 
+50	ENUM	1	Voice_Call_DAC_DAC_HS                   	0> Off, On, 
+51	ENUM	1	SineTable_UL2                           	0> Off, On, 
+52	ENUM	1	Pmic_Loopback                           	0> Off, LPBK3, 
+53	INT	1	Codec_Debug_Enable                      	00 (range 0->-1)
+54	INT	1	Audio AUXADC Data                       	00 (range 0->524288)
+55	ENUM	1	Audio_capture_hd_Switch                 	0> Off, On, 
+56	INT	1	Audio IRQ2 CNT                          	00 (range 0->260000)
+57	ENUM	1	capture_use_adc2_for_ch1_ch2            	0> Off, On, 
+58	INT	1	Speech_A2M_Msg_ID                       	00 (range 0->65535)
+59	INT	1	Speech_MD_Status                        	00 (range 0->-1)
+60	INT	1	Speech_MD_Ext_Status                    	00 (range 0->-1)
+61	BOOL	1	Speech_Mic_Mute                         	0Off
+62	BOOL	1	Speech_DL_Mute                          	0Off
+63	BOOL	1	Speech_UL_Mute                          	0Off
+64	INT	1	Speech_Phone1_MD_Idx                    	00 (range 0->2)
+65	INT	1	Speech_Phone2_MD_Idx                    	00 (range 0->2)
+66	BOOL	1	Speech_Phone_ID                         	0Off
+67	BOOL	1	Speech_MD_EPOF                          	0Off
+68	BOOL	1	Speech_BT_SCO_WB                        	0Off
+69	BOOL	1	Speech_MD_Active                        	0Off
+70	ENUM	1	loopback_use_single_input               	0> Off, Left, Right, 
+71	ENUM	1	LPBK_IN_USE_LCH                         	0> Off, On, 
+72	ENUM	1	Audio_i2s0_SideGen_Switch               	0> Off, On8000, On16000, On32000, On44100, On48000, On96000, On192000, 
+73	ENUM	1	Audio_i2s0_hd_Switch                    	0> Off, On, 
+74	ENUM	1	Audio_always_hd_Switch                  	0> Off, On, 
+75	ENUM	1	Audio_ExtCodec_EchoRef_Switch           	0> Off, MD1, MD3, SCP, 
+76	INT	1	Audio Mrgrx Volume                      	065536 (range 0->524288)
+77	ENUM	1	cmb stub Audio Control                  	0> CMB_STUB_AIF_0, CMB_STUB_AIF_1, CMB_STUB_AIF_2, CMB_STUB_AIF_3, 
+78	ENUM	1	Audio_I2S0dl1_hd_Switch                 	0> Off, On, 
+79	INT	1	Audio IRQ1 CNT                          	00 (range 0->260000)
+80	ENUM	1	deep_buffer_dl_hd_Switch                	0> Off, On, 
+81	INT	1	deep_buffer_irq_cnt                     	00 (range 0->260000)
+82	ENUM	1	dl1bt_memif_select                      	0> dl1, dl2, 
+83	ENUM	1	Audio_FMTX_hd_Switch                    	0Off, > On, 
+84	ENUM	1	Audio_SineGen_Switch                    	0I0I1, I2, I3I4, I5I6, I7I8, I9, I10I11, I12I13, I14, I15I16, I17I18, I19I20, I21I22, O0O1, O2, O3O4, O5O6, O7O8, O9O10, O11, O12, O13O14, O15O16, O17O18, O19O20, O21O22, O23O24, > OFF, O3, O4, I25I26, O25, O28O29, I23I24, O32O33, I27I28, O30O31, O34, O36O37, O38O39, I34I35, 
+85	ENUM	1	Audio_SineGen_SampleRate                	08K, 11K, 12K, 16K, 22K, 24K, 32K, 44K, > 48K, 88k, 96k, 176k, 192k, 
+86	ENUM	1	Audio_SineGen_Amplitude                 	01/128, 1/64, 1/32, 1/16, 1/8, 1/4, > 1/2, 1, 
+87	ENUM	1	Audio_Sidetone_Switch                   	0> Off, On, 
+88	INT	1	Sidetone_Gain                           	00 (range 0->32767)
+89	INT	1	Sidetone_Positive_Gain_dB               	00 (range 0->100)
+90	ENUM	1	Audio_Mode_Switch                       	0> Normal_Mode, Ringtone_Mode, Incall_Mode, Communication_Mode, Incall2_Mode, Incall_External_Mode, 
+91	ENUM	1	Audio_Debug_Setting                     	0> Off, On, 
+92	ENUM	1	Audio_Ipoh_Setting                      	0> Off, On, 
+93	ENUM	1	Audio_I2S1_Setting                      	0> Off, On, 
+94	INT	2	Audio_DL2_DataTransfer                  	0-1, -1 (range 0->65536)
+95	INT	1	Audio_LowLatency_Debug                  	00 (range 0->131072)
+96	ENUM	1	Audio_DPD_Switch                        	0> Off, On, 
+97	INT	1	Audio_Assign_DRAM                       	00 (range 0->131072)
+98	ENUM	1	MTK_SPK_TYPE_GET                        	0> MTK_SPK_NOT_SMARTPA, MTK_SPK_RICHTEK_RT5509, MTK_SPK_MTK_MT6660, 
+99	ENUM	1	Pmic_Anc_Switch                         	0> ANCON, ANCOFF, 
+100	INT	1	Audio FM I2S Volume                     	065536 (range 0->524288)
+101	ENUM	1	fast_dl_hd_Switch                       	0> Off, On, 
+102	ENUM	1	btcvsd_band                             	0> NB, WB, 
+103	ENUM	1	btcvsd_tx_mute                          	0> Off, On, 
+104	ENUM	1	btcvsd_rx_irq_received                  	0> No, Yes, 
+105	ENUM	1	btcvsd_rx_timeout                       	0> No, Yes, 
+106	BYTE	16	btcvsd_rx_timestamp                     	000, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00
+107	ENUM	1	btcvsd_tx_timeout                       	0> No, Yes, 
+108	ENUM	1	BT_DIRECT_LOOPBACK                      	0> Off, On, 
+109	BYTE	16	btcvsd_tx_timestamp                     	000, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00
+110	ENUM	1	USB_Modem_Select                        	0> md1, md2, 
+111	ENUM	1	USB_Voice_UL_Select                     	0> primary, usb, 
+112	ENUM	1	USB_Voice_Loopback_Switch               	0> Off, On, 
+113	INT	1	USB_Voice_Debug                         	00 (range 0->-1)
+114	INT	1	USB_Voice_Echo_Ref                      	00 (range 0->-1)
+115	ENUM	1	USB_EchoRef_Modem_Select                	0> md1, md2, 
+116	INT	1	USB_EchoRef_Voice_Debug                 	00 (range 0->-1)
