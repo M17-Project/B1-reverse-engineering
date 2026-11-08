@@ -184,6 +184,11 @@ RX analog chain per the datasheet: HPF (pass 300 Hz, stop 255 Hz) -> de-emphasis
 - CTC_PARAM (0x3D): `HPF_CORNER`, 300 or 450 Hz only.
 - `DCS_HPF` in ANALOG_CONFIG is documented as a DC-removal filter for DCS detection, not the voice HPF. Every analog RX signal flow in the datasheet passes through the same fixed voice HPF.
 - EQUALIZER_FILTER (0x70): three RX or TX biquads at 24 kHz, coefficients in Q2.14.
+- MISC_GAIN (0x6B): IQ and CTCSS/DCS gains plus the IF DC filter configuration (auto, or manual on/off). The firmware sends its own MISC_GAIN together with ANALOG_CONFIG.
+
+**The last ANALOG_CONFIG gain is the RX volume (Q16.11).** The manual default 2048 (`0800`) is about 37 dB louder than the firmware's own value. 27 (`001B`) reproduced the stock level within 0.2 dB at knob 2. Any ANALOG_CONFIG write therefore has to carry `001B` (or the value for the current knob position), or the speaker gets very loud. **[device]** In `FILTER_BYPASS` mode the RX volume field has no effect at all.
+
+RF chip: the SD01 firmware sets the DPMR_CALL_OPTION bits "SCT3258 controls the RF chip" and "IQ receive". The MCU never addresses an RF chip itself, its only I2C path is the host pass-through. The SCT3258 manual names the SCT3700 and the RDA1847 as RF partners. Together with the low-IF signal seen at the codec (below), this points to an IQ transceiver such as the SCT3700, with FM demodulation done in the SCT3258. An AT1846S-style chip that demodulates FM itself does not fit. Not confirmed visually. **[static]**
 
 ### Module audio codec [static], confirmed [device]
 
@@ -319,6 +324,8 @@ Module-side settings tried, all receive only and reversible by an RF module OFF/
 | WORK_MODE (0x18) audio decimator loop-back | no effect |
 | ANALOG_CONFIG `FILTER_BYPASS` | **partial bypass**. Removes the mid-band droop and the 3 kHz LPF and adds about 38 dB of gain, but **the HPF stays** (response relative to 1 kHz: 100 Hz -40, 200 Hz -23, 300 Hz -12, 500 Hz +1, 2 kHz +2, 3 kHz +5 dB). The output clips in the module below about 1 kHz deviation, the RX volume gain has no effect, and the speaker plays near full scale even with BT mode on. |
 | CTC_PARAM `HPF_CORNER` | 300 or 450 Hz only |
+| ANALOG_CONFIG `DCS_HPF` off, normal mode (25 kHz IF, 3 kHz LPF, RX volume `001B`) | no change in the low band or in decode quality |
+| MISC_GAIN IF DC filter off (manual mode) | no change in the low band or in decode quality. Open-squelch static drops by 21 dB (the uncancelled DC acts like a carrier) |
 | Codec routing HPL from MAR | low-IF RF signal instead of audio, too narrow for M17 (section 8) |
 
 #### Real M17
@@ -351,7 +358,13 @@ Short transmissions decode as well as long ones. Seven transmissions of 7-9 s, o
 
 While receiving, the 4FSK audio has to reach the SoC through HPL, and HPL also drives the speaker amplifier (section 8). In BT mode the amplifier is held in reset, and when forced on it plays the module audio. Decoded speech can be summed in from the phone side, but it is much weaker than the module audio, and the 4FSK buzz stays underneath while a signal is present. Muting HPL between transmissions (squelch closed) keeps the speaker silent then.
 
-What works today is record, decode, play: record with the RF module on, switch it off, then play the decoded speech through the normal Android media player. With the module off, the speaker plays phone audio cleanly. Playing the speech while the radio stays on, with the 4FSK kept off the speaker, is still unsolved.
+What works today is record, decode, play: record with the RF module on, switch it off, then play the decoded speech through the normal Android media player. With the module off, the speaker plays phone audio loud and clear.
+
+Playing the speech while the radio stays on is still unsolved:
+
+- With HPL muted the module's static disappears from the speaker almost completely, but the phone audio is then inaudible at media volume 6 and barely audible at maximum.
+- During playback with the module on and with it off, the SoC mixer settings, the AW87329 registers and the Android output device (speaker) are identical. The attenuation is therefore not in any software-visible setting.
+- Most likely it is analog. The phone and module outputs are summed at the amplifier input, and the powered module codec output loads the phone signal even when muted. Powering down the HPL driver (AIC3204 page 1 register 0x09) during playback might help. Not yet tried.
 
 The TX direction (phone audio into the module's modulator) has not been examined yet.
 
